@@ -8,7 +8,6 @@
 #include <inttypes.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/signal.h>
 #include <avr/pgmspace.h>
 #include <stdio.h>
 
@@ -108,7 +107,7 @@ void initfun(void) \
  * Function handling USB chip interrupts (external interrupt 1, PD 3).
  * SIGNAL() is a macro that marks the function as an interrupt routine.
  */
-SIGNAL (SIG_INTERRUPT1)
+SIGNAL(INT1_vect)
 {
    PORTB = PORTB | 0x03;
 
@@ -542,7 +541,7 @@ void stall_control_endpoint (void)
   * Function handling timer 1 overflow interrupts.
   * Closes the current USART receive buffer.
   */
-SIGNAL (SIG_OVERFLOW1)
+SIGNAL(TIMER1_OVF_vect)
 {
    // Stop timer 1
    TCCR1B = TIMER_STOP;
@@ -578,7 +577,7 @@ SIGNAL (SIG_OVERFLOW1)
 /**
   * Function handling UART receive interrupts.
   */
-SIGNAL (SIG_UART_RECV)
+SIGNAL(USART_RXC_vect)
 {
    PORTB = PORTB | 0x30;
    uint8_t status, res;
@@ -681,7 +680,7 @@ SIGNAL (SIG_UART_RECV)
 /**
  * Function called when a TWI interrupt occures.
  */
-SIGNAL (SIG_2WIRE_SERIAL)
+SIGNAL(TWI_vect)
 {
    PORTB = PORTB | 0xC0;
    uint8_t status;
@@ -926,14 +925,17 @@ int uart_putchar(char c)
    if (c == '\n')
    {
       loop_until_bit_is_set(UCSRA, UDRE);
-      outb(UDR, '\r');
+      //outb(UDR, '\r');
+      UDR = '\r';
    }
    loop_until_bit_is_set(UCSRA, UDRE);
-   outb(UDR, c);
+   //outb(UDR, c);
+   UDR = c;
    if (c == '\r')
    {
       loop_until_bit_is_set(UCSRA, UDRE);
-      outb(UDR, '\n');
+      //outb(UDR, '\n');
+      UDR = '\n';
    }
    return 0;
 }
@@ -1211,10 +1213,11 @@ int main (void)
 
     mobitex_state = MOBITEX_IDLE;
 
-    timer_enable_int (_BV(TOIE1)); // Enable timer 1 interrupts
+    //timer_enable_int (_BV(TOIE1)); // Enable timer 1 interrupts
+    TIMSK |= (1 << TOIE1);
 
     // Open an out pipe to enable //printf.
-    fdevopen(uart_putchar, NULL, 0);
+    //fdevopen(uart_putchar, NULL, 0);
 
     //printf("--Start--\n");
 
@@ -1226,7 +1229,8 @@ int main (void)
     init_usb ();
 
     // Enable interrupts from USB
-    enable_external_int (_BV (INT1) | _BV (INT0));
+    //enable_external_int (_BV (INT1) | _BV (INT0));
+    GICR |= (1<<INT0) | (1<<INT1);
     MCUCR = 0x03; // INT0 is trigered by a rising edge
 
     //printf ("-R-\n");
